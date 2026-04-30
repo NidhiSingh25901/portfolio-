@@ -1,0 +1,56 @@
+# Azure Pipelines YAML for a static HTML/CSS/JS site
+#
+# This pipeline builds (validates) the repo and publishes a zip artifact.
+# You can deploy this artifact to Azure App Service / Azure Static Web Apps
+# in a release pipeline or by adding a deployment stage.
+
+trigger:
+  branches:
+    include:
+      - master
+
+pr:
+  branches:
+    include:
+      - master
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  artifactName: 'site'
+
+steps:
+  - checkout: self
+
+  # Optional: run basic validation (HTML/CSS linting) using Node.js tooling.
+  # If you don't need linting, you can remove this whole NodeTool + npm block.
+  - task: NodeTool@0
+    displayName: 'Use Node.js 18.x'
+    inputs:
+      versionSpec: '18.x'
+
+  - script: |
+      set -e
+      npm init -y >/dev/null 2>&1 || true
+      npm install --no-fund --no-audit --silent htmlhint stylelint stylelint-config-standard
+      npx htmlhint "index.html"
+      npx stylelint "**/*.css"
+    displayName: 'Lint HTML/CSS (optional)'
+
+  # Create a deployable zip of the website files.
+  - task: ArchiveFiles@2
+    displayName: 'Archive site files'
+    inputs:
+      rootFolderOrFile: '$(Build.SourcesDirectory)'
+      includeRootFolder: false
+      archiveType: 'zip'
+      archiveFile: '$(Build.ArtifactStagingDirectory)/$(artifactName).zip'
+      replaceExistingArchive: true
+
+  - task: PublishBuildArtifacts@1
+    displayName: 'Publish artifact'
+    inputs:
+      PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+      ArtifactName: '$(artifactName)'
+      publishLocation: 'Container'
